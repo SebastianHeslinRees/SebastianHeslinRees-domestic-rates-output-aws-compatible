@@ -1,0 +1,34 @@
+Package: popmodules
+Type: Package
+Title: Modular functions to be called in the GLA population models
+Version: 0.1.0
+Authors@R: c(
+   person("Chris", "Fairless", email="christopher.fairless@london.gov.uk", role = c("aut", "cre")),
+   person("Marta", "Lapsley", email="marta.lapsley@london.gov.uk", role = "aut"),
+   person("Wil", "Tonkiss", email="william.tonkiss@london.gov.uk", role = "aut")
+   )
+Description: The GLA's cohort population models work by combining modular functions to calcula and validate components of change. This package contains the functions to do this, with methods to calculate births, deaths, and migration, to age on a population, to apply rates and to validate population data frames. See the README for a more detailed breakdown.
+Depends: R (>= 4.1.0)
+License: Currently internal to the GLA - contact the authors with any questions
+Encoding: UTF-8
+LazyData: true
+Imports: 
+    dplyr (>= 0.8.2),
+    magrittr (>= 1.5),
+    assertthat (>= 0.2.1),
+    stats,
+    rlang (>= 0.4.0),
+    data.table (>= 1.12.2),
+    tidyr (>= 0.8.3),
+    plyr (>= 1.8.4),
+    tibble (>= 2.1.1),
+    rprojroot,
+    dtplyr,
+    purrr,
+    minpack.lm,
+    testthat (>= 2.1.0),
+    stringr,
+    loggr,
+    devtools,
+    tidyselect
+RoxygenNote: 7.2.3
