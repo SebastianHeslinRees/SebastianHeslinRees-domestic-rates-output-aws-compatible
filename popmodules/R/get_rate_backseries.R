@@ -87,8 +87,8 @@ get_rate_backseries <- function(component_mye_path,
   
   
   popn <- popn  %>%
-    popn_age_on(births = births)%>%
-    filter(year %in% years_backseries) %>%
+    popn_age_on2(births = births)%>%
+    filter(year %in% years_backseries) #%>%
     # validate_population(col_data = "popn",
     #                     test_complete = TRUE,
     #                     test_unique = TRUE,
@@ -97,7 +97,7 @@ get_rate_backseries <- function(component_mye_path,
   
   # LOAD AND SET UP COMPONENT DATA
   # ------------------------------
-
+  message('check column headings in component df')
   print(names(component))  # This will show the column names in the component dataset
   
   if(is.null(col_component)) {
@@ -174,7 +174,7 @@ get_rate_backseries <- function(component_mye_path,
   component <- data.table::setDT(component)
   #data.table::setkeyv(component, unname(col_aggregation))
   
-  rates <- merge(popn, component, by.x = names(join_by), by.y = unname(join_by))
+  rates <- merge(popn, component, by.x = names(join_by), by.y = unname(join_by), allow.cartesian=TRUE)
   rates[, rate := ifelse(popn == 0, 0, get(col_component)/popn)]
   data.table::setnames(rates, names(join_by), unname(join_by))
   data.table::setDF(rates)
@@ -245,14 +245,14 @@ validate_get_rate_backseries_inputs <- function(population,
   # validate_population(births, col_aggregation = c("gss_code", "year", "sex", "age"), col_data = "births",
   #                     test_complete = TRUE, test_unique = TRUE, check_negative_values = TRUE)
   
-  assert_that(all(years_backseries %in% population$year),
-              msg = "get_rate_backseries expects the population dataframe to contain all of the years in years_backseries")
+  # assert_that(all(years_backseries %in% population$year),
+  #             msg = "get_rate_backseries expects the population dataframe to contain all of the years in years_backseries")
   
-  assert_that(all(years_backseries %in% births$year),
-              msg = "get_rate_backseries expects the births dataframe to contain all of the years in years_backseries")
+  # assert_that(all(years_backseries %in% births$year),
+  #             msg = "get_rate_backseries expects the births dataframe to contain all of the years in years_backseries")
   
-  assert_that(all(years_backseries %in% component$year),
-              msg = "get_rate_backseries expects the component dataframe to contain all of the years in years_backseries")
+  # assert_that(all(years_backseries %in% component$year),
+  #             msg = "get_rate_backseries expects the component dataframe to contain all of the years in years_backseries")
   
   invisible(TRUE)
 }

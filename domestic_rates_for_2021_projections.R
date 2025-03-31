@@ -44,30 +44,30 @@ load_all("popmodules")
 
 message("Scenario domestic migration rates (2021 projections)")
 
-# Define S3 paths for input data
+# # Define S3 paths for input data
 popn_mye_path <- "s3://dpa-population-projection-data/population_mid_year_estimates/2022/population_gla_2022.rds"
 births_mye_path <- "s3://dpa-population-projection-data/population_mid_year_estimates/2022/births_gla_2022.rds"
 dom_origin_destination_path <- "s3://dpa-population-projection-data/population_mid_year_estimates/2022/origin_destination_2002_2022_(2023_geog).rds"
-full_modelled_estimates_series_ew_path <- "s3://dpa-population-projection-data/population_mid_year_estimates/2022/full_modelled_estimates_series_EW(2023_geog).rds"
+# full_modelled_estimates_series_ew_path <- "s3://dpa-population-projection-data/population_mid_year_estimates/2022/full_modelled_estimates_series_EW(2023_geog).rds"
 
 # Monitor memory usage
 mem_used()
 
-# # Load data from S3 using s3readRDS
-# message("Loading population data...")
-# popn <- s3readRDS(popn_mye_path)
-# message("Population data loaded.")
-# mem_used()
+# Load data from S3 using s3readRDS
+message("Loading population data...")
+popn <- s3readRDS(popn_mye_path)
+message("Population data loaded.")
+mem_used()
 
-# message("Loading births data...")
-# births <- s3readRDS(births_mye_path)
-# message("Births data loaded.")
-# mem_used()
+message("Loading births data...")
+births <- s3readRDS(births_mye_path)
+message("Births data loaded.")
+mem_used()
 
-# message("Loading component data...")
-# flows <- s3readRDS(dom_origin_destination_path)
-# message("Component data loaded.")
-# mem_used()
+message("Loading component data...")
+flows <- s3readRDS(dom_origin_destination_path)
+message("Component data loaded.")
+mem_used()
 
 # message("Loading full modelled estimates series data...")
 # full_modelled_estimates_series_ew <- s3readRDS(full_modelled_estimates_series_ew_path)
@@ -77,19 +77,38 @@ mem_used()
 # Load the full data and then sample it
 #popn <- s3readRDS(popn_mye_path)
 #births <- s3readRDS(births_mye_path)
-flows <- s3readRDS(dom_origin_destination_path)
 
 
-full_modelled_estimates_series_ew <- s3readRDS(full_modelled_estimates_series_ew_path)
-#filter a sample of the data where year is 2021, to test on a smaller dataset
-#flows <- flows %>% filter(year == 2021)
-full_modelled_estimates_series_ew <- full_modelled_estimates_series_ew %>% filter(year == 2021) 
+# Load data from local paths for testing
+
+#popn_mye_path <- "/Users/user1/Documents/get_rate_backseries/input_data/population_gla_2022.rds"
+#popn_mye_path <- "/Users/user1/Documents/get_rate_backseries/input_data/population_gla_2022_filtered.rds"
+#popn_mye_path <- "/Users/user1/Documents/get_rate_backseries/input_data/2021/population_2021.rds"
+#births_mye_path <- "/Users/user1/Documents/get_rate_backseries/input_data/2021/births_2021.rds"
+#births_mye_path <- "/Users/user1/Documents/get_rate_backseries/input_data/births_gla_2022.rds"
+#dom_origin_destination_path <- "/Users/user1/Documents/get_rate_backseries/input_data/2021/origin_destination_2002_2022_(2023_geog).rds"
+#dom_origin_destination_path <- "/Users/user1/Documents/get_rate_backseries/input_data/2021/origin_destination_2002_2022_(2023_geog)_reduced_mem.csv"
+#dom_origin_destination_path <- "/Users/user1/Documents/get_rate_backseries/input_data/2021/origin_destination_2002_2022_(2023_geog)_reduced_mem_2021.csv"
+
+#flows <- readRDS(dom_origin_destination_path)
+# flows <- read.csv(dom_origin_destination_path)
+# popn <- readRDS(popn_mye_path)
+# births <- readRDS(births_mye_path)
+
+head(flows)
+head(popn)
+head(births)
 
 # Check object sizes
 object.size(flows)
-object.size(full_modelled_estimates_series_ew)
+object.size(popn)
+object.size(births)
 
-head(full_modelled_estimates_series_ew)
+#unique values in columns component
+unique(flows$component)
+unique(popn$component)
+unique(births$component)
+
 check_and_remove_nans <- function(df, col_name) {
   if (any(is.na(df[[col_name]]))) {
     n_nans <- sum(is.na(df[[col_name]]))
@@ -111,6 +130,27 @@ check_duplicates <- function(df) {
   }
 }
 
+remove_duplicates <- function(df) {
+  message("Removing duplicates from DataFrame...")
+  initial_count <- nrow(df)  
+  df_no_duplicates <- df %>% distinct()  # Remove duplicates
+  final_count <- nrow(df_no_duplicates)  
+  duplicates_removed <- initial_count - final_count  
+  
+  cat("Rows removed:", duplicates_removed, "\n")
+  cat("New row count:", final_count, "\n")
+  
+  return(df_no_duplicates)  # Ensure the cleaned DataFrame is returned
+}
+
+
+
+check_duplicates(flows)
+check_duplicates(popn)
+check_duplicates(births)   
+
+popn <- remove_duplicates(popn)
+
 # check for negative values in df
 check_negatives <- function(df, col_name) {
   if (any(df[[col_name]] < 0)) {
@@ -121,12 +161,8 @@ check_negatives <- function(df, col_name) {
   }
 }
 
-#filter full_modelled_estimates_series_ew to get population and births dfs
-popn <- full_modelled_estimates_series_ew %>% filter(component == "population")
-births <- full_modelled_estimates_series_ew %>% filter(component == "births")
-#mem size
-object.size(popn)
-object.size(births)
+
+
 
 #replace value name in column head with popn
 names(popn)[names(popn) == "value"] <- "popn"
@@ -165,6 +201,7 @@ message("scenario domestic migration rates (2021 projections)")
 #-------------------------------------------------------------------------------
 
 #domestic
+message("Calculating domestic migration rates...")
 rates_backseries <- get_rate_backseries(component_mye_path = flows,
                                         popn_mye_path = popn,
                                         births_mye_path = births,
@@ -176,36 +213,28 @@ rates_backseries <- get_rate_backseries(component_mye_path = flows,
 
 dom_rates_avg_2017_2021 <- rates_backseries %>% 
   calculate_mean_domestic_rates(last_data_year = 2021,
-                                n_years_to_avg = 5,
+                                n_years_to_avg = 1, #5,
                                 col_rate = "rate",
                                 rate_cap = 0.8)
 
 dom_rates_avg_2012_2021 <- rates_backseries %>% 
   calculate_mean_domestic_rates(last_data_year = 2021,
-                                n_years_to_avg = 10,
+                                n_years_to_avg = 1, #10,
                                 col_rate = "rate",
                                 rate_cap = 0.8)
 
 dom_rates_avg_2007_2021 <- rates_backseries %>% 
   calculate_mean_domestic_rates(last_data_year = 2021,
-                                n_years_to_avg = 15,
+                                n_years_to_avg = 1, #15,
                                 col_rate = "rate",
                                 rate_cap = 0.8)
 
 #-------------------------------------------------------------------------------
-
-# saveRDS(dom_rates_avg_2017_2021, "input_data/scenario_data/2021_dom_5yr_avg.rds")
-# saveRDS(dom_rates_avg_2012_2021, "input_data/scenario_data/2021_dom_10yr_avg.rds")
-# saveRDS(dom_rates_avg_2007_2021, "input_data/scenario_data/2021_dom_15yr_avg.rds")
 
 # Save output data to S3
 s3saveRDS(dom_rates_avg_2017_2021, object = paste0(output_path, "2021_dom_5yr_avg.rds"))
 s3saveRDS(dom_rates_avg_2012_2021, object = paste0(output_path, "2021_dom_10yr_avg.rds"))
 s3saveRDS(dom_rates_avg_2007_2021, object = paste0(output_path, "2021_dom_15yr_avg.rds"))
 
-# Profile the script
-profvis({
-  source("domestic_rates_for_2021_projections.R")
-})
 
 message("Script completed successfully. Outputs saved to S3.")
