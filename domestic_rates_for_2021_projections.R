@@ -28,11 +28,12 @@ library(profvis)
 
 Sys.setenv("AWS_DEFAULT_REGION" = "eu-west-2")
 
-Sys.setenv(
-AWS_ACCESS_KEY_ID = "",
-AWS_SECRET_ACCESS_KEY = "",
-AWS_DEFAULT_REGION = ""
-)
+# Sys.setenv(
+# AWS_ACCESS_KEY_ID = "",
+# AWS_SECRET_ACCESS_KEY = "",
+# AWS_DEFAULT_REGION = ""
+# )
+
 
 
 
