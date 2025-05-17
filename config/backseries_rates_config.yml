@@ -1,0 +1,3 @@
+default:
+  year: "2015" #can be "all" or a specific year
+  dom_origin_destination_path: "s3://dpa-population-projection-data/population_mid_year_estimates/2022/converted_parquet/year={year}/"

@@ -38,7 +38,7 @@ RUN R -e "install.packages(c('dplyr', 'assertthat', 'aws.s3', 'data.table', 'htt
 
 # Copy and run the AWS configuration script
 COPY config/aws_config.sh /usr/src/app/config/aws_config.sh
-COPY domestic_rates_for_2021_projections.R /usr/src/app/domestic_rates_for_2021_projections.R
+COPY domestic_rates_outputs.R /usr/src/app/domestic_rates_outputs.R
 COPY popmodules /usr/src/app/popmodules
 
 # Verify that the popmodules directory has been copied
@@ -48,4 +48,4 @@ RUN chmod +x /usr/src/app/config/aws_config.sh
 RUN /usr/src/app/config/aws_config.sh
 
 # Set the command to run the main R script
-CMD ["Rscript", "domestic_rates_for_2021_projections.R"]
+CMD ["Rscript", "domestic_rates_outputs.R"]
