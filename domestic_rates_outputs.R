@@ -33,202 +33,155 @@ library(stringr)
 
 Sys.setenv("AWS_DEFAULT_REGION" = "eu-west-2")
 
-# Sys.setenv(
-# AWS_ACCESS_KEY_ID = "",
-# AWS_SECRET_ACCESS_KEY = "",
-# AWS_DEFAULT_REGION = ""
-# )
-
-
-# Set the working directory to the folder containing the popmodules 
+# Set working directory and load package
 setwd(".")
-
-# Load the package
 load_all("popmodules")
 
+
+# Load config from S3
 s3_config_path <- "s3://dpa-population-projection-data/population_mid_year_estimates/configs/backseries_rates_config.yml"
-# Download config from S3
 local_config <- tempfile()
 save_object(object = s3_config_path, file = local_config)
-
-# Read the config from downloaded file
 cfg <- config::get(file = local_config)
-
-
-# Load config
-#cfg <- config::get(file = "config/config.yml")
 
 get_base_s3_path <- function(path_template) {
   str_replace(path_template, "year=\\{year\\}/?", "")
 }
 
-# Main function to read parquet data
-read_parquet_from_s3 <- function(cfg) {
-  year <- cfg$year
-  path_template <- cfg$dom_origin_destination_path
-  
-  if (tolower(year) == "all") {
-    base_path <- get_base_s3_path(path_template)
-    message("Reading data for ALL years from base path: ", base_path)
-    
-    dataset <- open_dataset(base_path, format = "parquet")
-  } else {
-    s3_path <- gsub("\\{year\\}", year, path_template)
-    message("Reading data for year: ", year)
-    message("From path: ", s3_path)
-    
-    dataset <- open_dataset(s3_path, format = "parquet")
-  }
-
-  # Collect the dataset into a data frame (regardless of which path is taken)
-  df <- dataset %>% collect()
-  return(df)
+list_available_years <- function(base_path) {
+  dataset <- open_dataset(base_path, format = "parquet")
+  dataset %>% select(year) %>% collect() %>% distinct() %>% pull(year) %>% sort()
 }
 
-
-popn_mye_path <- "s3://dpa-population-projection-data/population_mid_year_estimates/2022/population_gla_2022.rds"
-births_mye_path <- "s3://dpa-population-projection-data/population_mid_year_estimates/2022/births_gla_2022.rds"
-# Monitor memory usage
-mem_used()
-
-# Load data from S3 using s3readRDS
-message("Loading population data...")
-popn <- s3readRDS(popn_mye_path)
-message("Population data loaded.")
-mem_used()
-
-message("Loading births data...")
-births <- s3readRDS(births_mye_path)
-message("Births data loaded.")
-mem_used()
-
-message("Loading component data from Parquet...")
-# Read the Parquet file using arrow::read_parquet
-flows <- read_parquet_from_s3(cfg)
-message("Component data loaded.")
-mem_used()
-
-
-head(flows)
-head(popn)
-head(births)
-
-
-#replace value name in column head with popn
+# Load static inputs
+popn <- s3readRDS("s3://dpa-population-projection-data/population_mid_year_estimates/2022/population_gla_2022.rds")
+births <- s3readRDS("s3://dpa-population-projection-data/population_mid_year_estimates/2022/births_gla_2022.rds")
 names(popn)[names(popn) == "value"] <- "popn"
-names(births)[names(births) == "value"] <- "births" 
-
-# Conditionally add a year column
-if (tolower(cfg$year) != "all") {
-  numeric_year <- as.numeric(cfg$year)
-  flows$year <- numeric_year
-} else {
-  numeric_year <- c(min(flows$year), max(flows$year))
-}
-
-# Check object sizes
-object.size(flows)
-object.size(popn)
-object.size(births)
-
-
-#Preprocess the data
-check_and_remove_nans <- function(df, col_name) {
-  if (any(is.na(df[[col_name]]))) {
-    n_nans <- sum(is.na(df[[col_name]]))
-    message(paste("Dataframe", deparse(substitute(df)), "Column", col_name, "contains", n_nans, "missing values. Removing these rows."))
-    df <- df %>% filter(!is.na(df[[col_name]]))
-  } else {
-    message(paste("Dataframe", deparse(substitute(df)), "No missing values found in column", col_name))
-  }
-  return(df)
-}
-
-check_duplicates <- function(df) {
-  dups <- duplicated(df)
-  n_duplicates <- sum(dups)
-
-  if (n_duplicates > 0) {
-    message(sprintf("Dataframe %s contains %d duplicate rows.", deparse(substitute(df)), n_duplicates))
-  } else {
-    message(sprintf("Dataframe %s has no duplicate rows.", deparse(substitute(df))))
-  }
-}
-
-#remove duplicate rows in df
-remove_duplicates <- function(df) {
-  message("Removing duplicates from DataFrame...")
-  initial_count <- nrow(df)  
-  df_no_duplicates <- df %>% distinct()  # Remove duplicates
-  final_count <- nrow(df_no_duplicates)  
-  duplicates_removed <- initial_count - final_count  
-  
-  cat("Rows removed:", duplicates_removed, "\n")
-  cat("New row count:", final_count, "\n")
-  
-  return(df_no_duplicates)  # Ensure the cleaned DataFrame is returned
-}
-
-# check for negative values in df
-check_negatives <- function(df, col_name) {
-  if (any(df[[col_name]] < 0)) {
-    n_negatives <- sum(df[[col_name]] < 0)
-    message(paste("Dataframe", deparse(substitute(df)), "Column", col_name, "contains", n_negatives, "negative values."))
-  } else {
-    message(paste("Dataframe", deparse(substitute(df)), "No negative values found in column", col_name))
-  }
-}
-
-# check for duplcates in flows, popn and births
-message("Checking for duplicates in dfs...")
-check_duplicates(flows)
-check_duplicates(popn)
-check_duplicates(births)   
-
-#check negative values in popn 
-message("Checking for negative values in dfs...")
-check_negatives(popn, "popn")
-check_negatives(births, "births")
-check_negatives(flows, "value")
-
-#replace negative values in popn with 0 in popn column
-message("Replacing negative values in popn with 0...")
+names(births)[names(births) == "value"] <- "births"
 popn$popn[popn$popn < 0] <- 0
 
-head(popn)
-head(births)
-head(flows)
+# Preprocessing helpers
+check_and_remove_nans <- function(df, col_name) {
+  n_nans <- sum(is.na(df[[col_name]]))
+  if (n_nans > 0) {
+    message(glue("⚠️ {n_nans} NA values in '{col_name}' — removed."))
+    df <- df %>% filter(!is.na(.data[[col_name]]))
+  }
+  return(df)
+}
 
-# check unique years in dfs
-message("Checking unique years in dfs...")
-unique(flows$year)
-unique(popn$year)
-unique(births$year)
+remove_duplicates <- function(df) {
+  df %>% distinct()
+}
 
-message(paste0("domestic migration rates backseries for flows:", cfg$year))
+check_negatives <- function(df, col_name) {
+  n_neg <- sum(df[[col_name]] < 0)
+  if (n_neg > 0) {
+    message(glue("⚠️ {n_neg} negative values in '{col_name}'"))
+  }
+}
 
-#domestic migration rates backseries
-rates_backseries <- get_rate_backseries(component_mye_path = flows,
-                                        popn_mye_path = popn,
-                                        births_mye_path = births,
-                                        years_backseries = numeric_year,
-                                        col_partial_match = c("gss_out","gss_in"),
-                                        col_aggregation = c("year","gss_code"="gss_out","gss_in","sex","age"),
-                                        col_component = "value",
-                                        rate_cap = NULL)
-
-head(rates_backseries)
-
-#-------------------------------------------------------------------------------
+# Output
 output_path <- "s3://dpa-population-projection-data/population_mid_year_estimates/outputs/parquet_backseries_rates/"
 
-# Write the dataframe to S3 partitioned by year
-write_dataset(
-  dataset = rates_backseries,
-  path = output_path,
-  format = "parquet",
-  partitioning = "year"
-)
+# Main loop when year == "all"
+if (tolower(cfg$year) == "all") {
+  path_template <- cfg$dom_origin_destination_path
+  base_path <- get_base_s3_path(path_template)
+  all_years <- list_available_years(base_path)
+  high_memory_threshold <- 2 * 1024^3  # 2 GB
 
-message("Script completed successfully. Outputs saved to S3.")
+  failed_years <- c()
+  memory_intensive_years <- c()
+
+  for (year in all_years) {
+    message(glue("⏳ Starting processing for year {year}..."))
+
+    tryCatch({
+      mem_start <- mem_used()
+
+      s3_path <- gsub("\\{year\\}", year, path_template)
+      flows <- open_dataset(s3_path, format = "parquet") %>% collect()
+      flows$year <- year
+
+      flows <- flows %>%
+        remove_duplicates() %>%
+        check_and_remove_nans("value")
+      check_negatives(flows, "value")
+
+      rates_backseries <- get_rate_backseries(
+        component_mye_path = flows,
+        popn_mye_path = popn,
+        births_mye_path = births,
+        years_backseries = year,
+        col_partial_match = c("gss_out", "gss_in"),
+        col_aggregation = c("year", "gss_code" = "gss_out", "gss_in", "sex", "age"),
+        col_component = "value",
+        rate_cap = NULL
+      )
+
+      write_dataset(
+        dataset = rates_backseries,
+        path = output_path,
+        format = "parquet",
+        partitioning = "year"
+      )
+
+      mem_end <- mem_used()
+      mem_delta <- mem_end - mem_start
+
+      message(glue("✅ Year {year} processed and saved. Memory used: {round(as.numeric(mem_delta) / 1024^2, 2)} MB"))
+
+      if (mem_delta > high_memory_threshold) {
+        memory_intensive_years <- c(memory_intensive_years, year)
+        message(glue("⚠️ Year {year} used high memory: {round(as.numeric(mem_delta) / 1024^2, 2)} MB"))
+      }
+    }, error = function(e) {
+      message(glue("❌ ERROR processing year {year}: {e$message}"))
+      failed_years <<- c(failed_years, year)
+    })
+  }
+
+  message("✅ All years attempted.")
+
+  if (length(failed_years) > 0) {
+    message("❌ Failed years: ", paste(failed_years, collapse = ", "))
+  }
+  if (length(memory_intensive_years) > 0) {
+    message("⚠️ Memory-intensive years: ", paste(memory_intensive_years, collapse = ", "))
+  }
+
+} else {
+  # Process single year
+  year <- cfg$year
+  s3_path <- gsub("\\{year\\}", year, cfg$dom_origin_destination_path)
+  flows <- open_dataset(s3_path, format = "parquet") %>% collect()
+  flows$year <- as.numeric(year)
+
+  flows <- flows %>%
+    remove_duplicates() %>%
+    check_and_remove_nans("value")
+  check_negatives(flows, "value")
+
+  rates_backseries <- get_rate_backseries(
+    component_mye_path = flows,
+    popn_mye_path = popn,
+    births_mye_path = births,
+    years_backseries = as.numeric(year),
+    col_partial_match = c("gss_out", "gss_in"),
+    col_aggregation = c("year", "gss_code" = "gss_out", "gss_in", "sex", "age"),
+    col_component = "value",
+    rate_cap = NULL
+  )
+
+  write_dataset(
+    dataset = rates_backseries,
+    path = output_path,
+    format = "parquet",
+    partitioning = "year"
+  )
+
+  message(glue("✅ Completed single year {year}."))
+}
+
 

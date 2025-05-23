@@ -29,6 +29,10 @@ RUN apt-get update && apt-get install -y \
 # Install remotes (lighter alternative to devtools)
 RUN R -e "install.packages('remotes', repos='https://cloud.r-project.org/')"
 
+# Copy the local package beforetrying to install it
+COPY popmodules /usr/src/app/popmodules
+RUN ls -l /usr/src/app/popmodules
+
 # Use remotes to install packages instead of devtools
 RUN R -e "remotes::install_local('popmodules')"
 
@@ -39,6 +43,7 @@ RUN R -e "install.packages(c('dplyr', 'assertthat', 'aws.s3', 'data.table', 'htt
 # Copy and run the AWS configuration script
 COPY config/aws_config.sh /usr/src/app/config/aws_config.sh
 COPY domestic_rates_outputs.R /usr/src/app/domestic_rates_outputs.R
+COPY averaging_rates.R /usr/src/app/averaging_rates.R
 COPY popmodules /usr/src/app/popmodules
 
 # Verify that the popmodules directory has been copied
@@ -47,5 +52,13 @@ RUN ls -l /usr/src/app/popmodules
 RUN chmod +x /usr/src/app/config/aws_config.sh
 RUN /usr/src/app/config/aws_config.sh
 
-# Set the command to run the main R script
-CMD ["Rscript", "domestic_rates_outputs.R"]
+# Copy the shell script into the container
+COPY run_all.sh /usr/src/app/run_all.sh
+
+# Make it executable
+RUN chmod +x /usr/src/app/run_all.sh
+
+# Use JSON array syntax for CMD to avoid warnings
+CMD ["sh", "run_all.sh"]
+# CMD ["Rscript", "domestic_rates_outputs.R"]
+# CMD ["Rscript", "averaging_rates.R"]
